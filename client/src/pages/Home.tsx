@@ -9,29 +9,34 @@ interface Story {
   title: string;
   subtitle: string;
   excerpt: string;
-  source: string;
-  time_ago: string;
-  url: string;
+  source?: string;
+  timestamp: string;
+  url?: string;
 }
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  "AI & Startups": <Zap className="w-4 h-4" />,
-  "World News": <Globe className="w-4 h-4" />,
-  "UK Economy": <TrendingUp className="w-4 h-4" />,
-  "UK Pensions": <TrendingUp className="w-4 h-4" />,
-  "Italian Pensions": <TrendingUp className="w-4 h-4" />,
-  "Maidenhead Local": <MapPin className="w-4 h-4" />,
-  "Italian Cycling": <Bike className="w-4 h-4" />,
+  "ai": <Zap className="w-4 h-4" />,
+  "world": <Globe className="w-4 h-4" />,
+  "economy": <TrendingUp className="w-4 h-4" />,
+  "local": <MapPin className="w-4 h-4" />,
+  "cycling": <Bike className="w-4 h-4" />,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  "AI & Startups": "bg-blue-100 text-blue-800",
-  "World News": "bg-purple-100 text-purple-800",
-  "UK Economy": "bg-green-100 text-green-800",
-  "UK Pensions": "bg-amber-100 text-amber-800",
-  "Italian Pensions": "bg-orange-100 text-orange-800",
-  "Maidenhead Local": "bg-red-100 text-red-800",
-  "Italian Cycling": "bg-pink-100 text-pink-800",
+  "ai": "bg-blue-100 text-blue-800",
+  "world": "bg-purple-100 text-purple-800",
+  "economy": "bg-green-100 text-green-800",
+  "local": "bg-red-100 text-red-800",
+  "cycling": "bg-pink-100 text-pink-800",
+};
+
+const categoryDisplayNames: Record<string, string> = {
+  "ALL NEWS": "ALL NEWS",
+  "ai": "AI & Startups",
+  "world": "World News",
+  "economy": "UK Economy",
+  "local": "Maidenhead Local",
+  "cycling": "Cycling"
 };
 
 export default function Home() {
@@ -41,15 +46,13 @@ export default function Home() {
   useEffect(() => {
     const loadStories = async () => {
       try {
-        const response = await fetch("/curated_stories.json");
-        const data = await response.json();
-        // Only show stories from today's date
-        const today = new Date().toISOString().split('T')[0];
-        if (data.date === today) {
-          setStories(data.stories || []);
-        } else {
-          // If date doesn't match, still show stories but they're from the current JSON
-          setStories(data.stories || []);
+        const response = await fetch("/api/trpc/news.getLatest");
+        const result = await response.json();
+        const newsData = result?.result?.data?.json;
+        
+        // Set stories directly from API response
+        if (newsData?.stories) {
+          setStories(newsData.stories);
         }
       } catch (error) {
         console.error("Error loading stories:", error);
@@ -66,13 +69,11 @@ export default function Home() {
 
   const categories = [
     "ALL NEWS",
-    "AI & Startups",
-    "World News",
-    "UK Economy",
-    "UK Pensions",
-    "Italian Pensions",
-    "Maidenhead Local",
-    "Italian Cycling",
+    "ai",
+    "world",
+    "economy",
+    "local",
+    "cycling",
   ];
 
   const today = new Date();
@@ -115,7 +116,7 @@ export default function Home() {
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
-                {cat}
+                {categoryDisplayNames[cat] || cat}
               </button>
             ))}
           </div>
@@ -139,7 +140,7 @@ export default function Home() {
                       <div className="flex items-center gap-2 mb-3">
                         <Badge className={`${CATEGORY_COLORS[filteredStories[0].category]} border-0`}>
                           {CATEGORY_ICONS[filteredStories[0].category]}
-                          <span className="ml-1">{filteredStories[0].category}</span>
+                          <span className="ml-1">{categoryDisplayNames[filteredStories[0].category] || filteredStories[0].category}</span>
                         </Badge>
                       </div>
                       <h2 className="text-3xl font-serif font-bold mb-2 text-slate-900">
@@ -155,7 +156,7 @@ export default function Home() {
                         <div className="text-sm text-slate-500">
                           <span className="font-medium">{filteredStories[0].source}</span>
                           <span className="mx-2">•</span>
-                          <span>{filteredStories[0].time_ago}</span>
+                          <span>{filteredStories[0].timestamp}</span>
                         </div>
                         <a
                           href={filteredStories[0].url}
@@ -179,7 +180,7 @@ export default function Home() {
                     <div className="text-sm text-blue-700">Stories Today</div>
                   </Card>
                   <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 p-6">
-                    <div className="text-3xl font-bold text-orange-900 mb-1">7</div>
+                    <div className="text-3xl font-bold text-orange-900 mb-1">5</div>
                     <div className="text-sm text-orange-700">Categories</div>
                   </Card>
                   <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200 p-6">
@@ -200,25 +201,21 @@ export default function Home() {
                   className="bg-white border-l-4 hover:shadow-lg transition-all duration-300"
                   style={{
                     borderLeftColor:
-                      story.category === "AI & Startups"
+                      story.category === "ai"
                         ? "#3b82f6"
-                        : story.category === "World News"
+                        : story.category === "world"
                           ? "#a855f7"
-                          : story.category === "UK Economy"
+                          : story.category === "economy"
                             ? "#10b981"
-                            : story.category === "UK Pensions"
-                              ? "#f59e0b"
-                              : story.category === "Italian Pensions"
-                                ? "#f97316"
-                                : story.category === "Maidenhead Local"
-                                  ? "#ef4444"
-                                  : "#ec4899",
+                            : story.category === "local"
+                              ? "#ef4444"
+                              : "#ec4899",
                   }}
                 >
                   <div className="p-6">
                     <Badge className={`${CATEGORY_COLORS[story.category]} border-0 mb-3`}>
                       {CATEGORY_ICONS[story.category]}
-                      <span className="ml-1">{story.category}</span>
+                      <span className="ml-1">{categoryDisplayNames[story.category] || story.category}</span>
                     </Badge>
                     <h3 className="text-xl font-serif font-bold mb-2 text-slate-900">
                       {story.title}
@@ -233,7 +230,7 @@ export default function Home() {
                       <div className="text-xs text-slate-500">
                         <span className="font-medium">{story.source}</span>
                         <span className="mx-1.5">•</span>
-                        <span>{story.time_ago}</span>
+                        <span>{story.timestamp}</span>
                       </div>
                       <a
                         href={story.url}
@@ -271,3 +268,4 @@ export default function Home() {
     </div>
   );
 }
+

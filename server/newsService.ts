@@ -12,6 +12,7 @@ interface NewsArticle {
   url: string;
   source: string;
   category: string;
+  categories: string[];
   published_at: string;
 }
 
@@ -26,20 +27,21 @@ interface FetchedStory {
   url?: string;
 }
 
-const NEWS_API_URL = "https://api.thenewsapi.com/v1/news/top";
+const NEWS_API_URL = "https://api.thenewsapi.com/v1/news/all";
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 
 /**
- * Fetch news articles from TheNewsAPI.com
+ * Fetch news articles from TheNewsAPI.com using search
  */
-async function fetchNewsFromAPI(query: string, limit: number = 3): Promise<NewsArticle[]> {
+async function fetchNewsFromAPI(searchQuery: string, limit: number = 10): Promise<NewsArticle[]> {
   try {
     if (!NEWS_API_KEY) {
       console.error("[News API] NEWS_API_KEY not configured");
       return [];
     }
 
-    const url = `${NEWS_API_URL}?query=${encodeURIComponent(query)}&limit=${limit}&language=en&api_token=${NEWS_API_KEY}`;
+    const url = `${NEWS_API_URL}?search=${encodeURIComponent(searchQuery)}&limit=${limit}&language=en&api_token=${NEWS_API_KEY}`;
+    console.log(`[News API] Searching for: "${searchQuery}"`);
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -48,6 +50,7 @@ async function fetchNewsFromAPI(query: string, limit: number = 3): Promise<NewsA
     }
 
     const data = await response.json();
+    console.log(`[News API] Found ${data.data?.length || 0} articles for "${searchQuery}"`);
     return data.data || [];
   } catch (error) {
     console.error("[News API] Error fetching news:", error);
@@ -90,48 +93,65 @@ function formatTime(date: Date): string {
 }
 
 /**
- * Fetch all news for the morning summary
+ * Fetch all news for the morning summary with deduplication
  */
 export async function fetchAllNews(): Promise<FetchedStory[]> {
   const stories: FetchedStory[] = [];
+  const seenUrls = new Set<string>();
   let storyId = 1;
 
-  // AI & Startups
-  console.log("[News] Fetching AI & Startups news...");
-  const aiNews = await fetchNewsFromAPI("AI artificial intelligence startups technology", 2);
-  aiNews.forEach((article, index) => {
-    stories.push(convertToStory(article, "ai", storyId++));
-  });
+  // Specific search queries for your interests
+  const searchCategories = [
+    { 
+      search: "OpenAI ChatGPT Claude Anthropic startup venture capital funding", 
+      category: "ai", 
+      limit: 15 
+    },
+    { 
+      search: "world news international Ukraine Middle East China politics",
+      category: "world", 
+      limit: 15 
+    },
+    { 
+      search: "UK pension state pension retirement triple lock annuity", 
+      category: "economy", 
+      limit: 15 
+    },
+    { 
+      search: "Maidenhead Windsor Berkshire Reading local news council", 
+      category: "local", 
+      limit: 15 
+    },
+    { 
+      search: "cycling Giro Italia Tour de France Pogacar Vingegaard bike race", 
+      category: "cycling", 
+      limit: 15 
+    }
+  ];
 
-  // World News
-  console.log("[News] Fetching World News...");
-  const worldNews = await fetchNewsFromAPI("world news international breaking", 2);
-  worldNews.forEach((article, index) => {
-    stories.push(convertToStory(article, "world", storyId++));
-  });
+  for (const { search, category, limit } of searchCategories) {
+    console.log(`[News] Fetching ${category} news...`);
+    const articles = await fetchNewsFromAPI(search, limit);
+    
+    // Only add unique articles (deduplicate by URL)
+    let addedCount = 0;
+    for (const article of articles) {
+      if (article.url && !seenUrls.has(article.url)) {
+        seenUrls.add(article.url);
+        stories.push(convertToStory(article, category, storyId++));
+        addedCount++;
+        
+        // Limit to 2 unique stories per category
+        if (addedCount >= 2) {
+          break;
+        }
+      }
+    }
+    
+    console.log(`[News] Added ${addedCount} stories for ${category}`);
+  }
 
-  // Economy & Finance
-  console.log("[News] Fetching Economy news...");
-  const economyNews = await fetchNewsFromAPI("UK economy finance business markets", 2);
-  economyNews.forEach((article, index) => {
-    stories.push(convertToStory(article, "economy", storyId++));
-  });
-
-  // Local News (Maidenhead)
-  console.log("[News] Fetching Local news...");
-  const localNews = await fetchNewsFromAPI("Maidenhead UK local news", 2);
-  localNews.forEach((article, index) => {
-    stories.push(convertToStory(article, "local", storyId++));
-  });
-
-  // Cycling News
-  console.log("[News] Fetching Cycling news...");
-  const cyclingNews = await fetchNewsFromAPI("cycling Giro d'Italia bike racing", 2);
-  cyclingNews.forEach((article, index) => {
-    stories.push(convertToStory(article, "cycling", storyId++));
-  });
-
-  console.log(`[News] Fetched ${stories.length} total stories`);
+  console.log(`[News] Fetched ${stories.length} unique stories from ${seenUrls.size} total articles`);
   return stories;
 }
 
@@ -159,9 +179,9 @@ export function getFallbackStories(): FetchedStory[] {
     {
       id: 3,
       category: "economy",
-      title: "UK Economy & Finance",
-      subtitle: "Economic updates and financial news",
-      excerpt: "Latest updates on the UK economy, markets, and financial developments.",
+      title: "UK Pension News",
+      subtitle: "Pension and retirement updates",
+      excerpt: "Latest updates on UK and Italian pensions, retirement planning, and financial news.",
       timestamp: "Today",
     },
     {
@@ -182,3 +202,4 @@ export function getFallbackStories(): FetchedStory[] {
     },
   ];
 }
+
